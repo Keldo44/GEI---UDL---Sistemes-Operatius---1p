@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     char cadena[MIDA_MAX_CADENA];
 
     // Definim el path del calculador
-    char *args[] = {"./calculadorInicial", "./calculadorInicial", NULL};
+    char *args[] = {"./calculador", "./calculador", NULL};
 
     // Pipes per a la comunicació
     int pipes[numCalculadors][2];  // Pipe per a cada calculador (fd[0] lectura, fd[1] escriptura)

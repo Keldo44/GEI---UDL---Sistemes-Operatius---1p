@@ -1,20 +1,23 @@
 ❯ ./controlador 3
-[./controlador-pid:7097]> * * * * * * * * * *  I N I C I  * * * * * * * * * *
-[./controlador-pid:7097]> Processos calculadors: 3.
+[./controlador-pid:15843]> * * * * * * * * * *  I N I C I  * * * * * * * * * *
+[./controlador-pid:15843]> Processos calculadors: 3.
 
-[./controlador-pid:7097]> Activacio calculador 1 (pid: 7098)
-[./controlador-pid:7097]> Activacio calculador 2 (pid: 7099)
-[./controlador-pid:7097]> Activacio calculador 3 (pid: 7100)
+[./controlador-pid:15843]> Activacio calculador 1 (pid: 15844)
+[./controlador-pid:15843]> Activacio calculador 2 (pid: 15845)
+[./controlador-pid:15843]> Activacio calculador 3 (pid: 15846)
+Us: ./calculador <número calculador> <fd_pipe>
 
-[./controlador-pid:7097]> Error execl fill 1.: No such file or directory
+Per exemple: ./calculador 1 3
 
+[./controlador-pid:15843]> Rebuda finalitzacio calculador (pid-15844) codi:1 
+Us: ./calculador <número calculador> <fd_pipe>
 
-[./controlador-pid:7097]> Error execl fill 2.: No such file or directory
+Per exemple: ./calculador 1 3
 
-[./controlador-pid:7097]> Rebuda finalitzacio calculador (pid-7098) codi:1 
+Us: ./calculador <número calculador> <fd_pipe>
 
-[./controlador-pid:7097]> Error execl fill 3.: No such file or directory
+Per exemple: ./calculador 1 3
 
-[./controlador-pid:7097]> Rebuda finalitzacio calculador (pid-7099) codi:1 
-[./controlador-pid:7097]> Rebuda finalitzacio calculador (pid-7100) codi:1 
-[./controlador-pid:7097]> * * * * * * * * * *  F I  * * * * * * * * * *
+[./controlador-pid:15843]> Rebuda finalitzacio calculador (pid-15846) codi:1 
+[./controlador-pid:15843]> Rebuda finalitzacio calculador (pid-15845) codi:1 
+[./controlador-pid:15843]> * * * * * * * * * *  F I  * * * * * * * * * *
