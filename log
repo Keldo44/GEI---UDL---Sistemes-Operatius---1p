@@ -1,0 +1,20 @@
+❯ ./controlador 3
+[./controlador-pid:7097]> * * * * * * * * * *  I N I C I  * * * * * * * * * *
+[./controlador-pid:7097]> Processos calculadors: 3.
+
+[./controlador-pid:7097]> Activacio calculador 1 (pid: 7098)
+[./controlador-pid:7097]> Activacio calculador 2 (pid: 7099)
+[./controlador-pid:7097]> Activacio calculador 3 (pid: 7100)
+
+[./controlador-pid:7097]> Error execl fill 1.: No such file or directory
+
+
+[./controlador-pid:7097]> Error execl fill 2.: No such file or directory
+
+[./controlador-pid:7097]> Rebuda finalitzacio calculador (pid-7098) codi:1 
+
+[./controlador-pid:7097]> Error execl fill 3.: No such file or directory
+
+[./controlador-pid:7097]> Rebuda finalitzacio calculador (pid-7099) codi:1 
+[./controlador-pid:7097]> Rebuda finalitzacio calculador (pid-7100) codi:1 
+[./controlador-pid:7097]> * * * * * * * * * *  F I  * * * * * * * * * *
