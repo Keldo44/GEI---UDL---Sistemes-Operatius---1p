@@ -32,20 +32,25 @@ void ImprimirError(char *text);
 */
 char capInfoControlador[MIDA_MAX_CADENA];
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     unsigned short int numCalculadors;
     unsigned char i;
     pid_t pid;
     int estatWait;
     char cadena[MIDA_MAX_CADENA];
 
-    // Definim el path del calculador
-    char *args[] = {"./calculador", "./calculador", NULL};
+    // Create a pipe
+    int fd[2]; // fd[0] for reading, fd[1] for writing
+    if (pipe(fd) == -1) {
+        ImprimirError("Error creating pipe");
+    }
 
-    // Pipes per a la comunicació
-    int pipes[numCalculadors][2];  // Pipe per a cada calculador (fd[0] lectura, fd[1] escriptura)
+    // Update this array with the correct executable name
+    char *args[] = {"./calculador", NULL};
 
-    if (argc != 2) {
+    if (argc != 2)
+    {
         sprintf(cadena, "Us: %s <nombre processos calculadors>\n\nPer exemple: %s 3\n\n", argv[0], argv[0]);
         write(1, cadena, strlen(cadena));
         exit(2);
@@ -58,56 +63,36 @@ int main(int argc, char *argv[]) {
     sprintf(cadena, "Processos calculadors: %u.\n\n", numCalculadors);
     ImprimirInfoControlador(cadena);
 
-    // Creem els pipes i forquem processos
-    for (i = 0; i < numCalculadors; i++) {
-        if (pipe(pipes[i]) == -1) {
-            ImprimirError("Error creant pipe");
-        }
-
-        switch (pid = fork()) {
+    for (i = 0; i < numCalculadors; i++)
+    {
+        switch (pid = fork())
+        {
         case -1:
             sprintf(cadena, "ERROR creacio fill %u.", i + 1);
             ImprimirError(cadena);
 
-        case 0: /* Fill */
-            // El fill llegeix des del pipe
-            close(pipes[i][1]);  // Tanca l'extrem d'escriptura
-
-            // Passar l'extrem de lectura com a argument al calculador
-            char pipe_read_fd_str[10];
-            sprintf(pipe_read_fd_str, "%d", pipes[i][0]);  // File descriptor de lectura
-
-            execl(args[0], args[1], pipe_read_fd_str, NULL);  // Passar el FD al calculador
-
+        case 0: /* Child process */
+            sprintf(cadena, "%u", i + 1);
+            // Close the read end of the pipe in the child process
+            close(fd[0]);
+            // Pass the calculator number and the write end of the pipe
+            execl(args[0], args[0], cadena, "1", NULL); // Here, "1" is a placeholder for fd_pipe
             sprintf(cadena, "Error execl fill %u.", i + 1);
             ImprimirError(cadena);
 
-        default:
-            // El pare escriu al pipe
-            close(pipes[i][0]);  // Tanca l'extrem de lectura
-
+        default: /* Parent process */
             sprintf(cadena, "Activacio calculador %u (pid: %u)\n", i + 1, pid);
             ImprimirInfoControlador(cadena);
-
-            int nombre = i + 2;  // Nombre per comprovar si és primer
-            write(pipes[i][1], &nombre, sizeof(int));  // Enviar nombre al calculador
-
-            close(pipes[i][1]);  // Tancar l'extrem d'escriptura un cop enviat
+            
+            pid = wait(&estatWait);
+            sprintf(cadena, "Rebuda finalitzacio calculador (pid-%u) codi:%d \n", pid, WEXITSTATUS(estatWait));
+            ImprimirInfoControlador(cadena);
         }
     }
 
-    // Esperem la finalització dels calculadors
-    for (i = 0; i < numCalculadors; i++) {
-        pid = wait(&estatWait);
-        sprintf(cadena, "Rebuda finalitzacio calculador (pid-%u) codi:%d \n", pid, WEXITSTATUS(estatWait));
-        ImprimirInfoControlador(cadena);
-    }
-
     ImprimirInfoControlador("* * * * * * * * * *  F I  * * * * * * * * * *\n");
-
     exit(EXIT_SUCCESS);
 }
-
 void ImprimirInfoControlador(char *text) {
     char infoColor[strlen(capInfoControlador) + strlen(text) + MIDA_MAX_CADENA_COLORS * 2];
     sprintf(infoColor, "%s%s%s%s", INVERTIR_COLOR, capInfoControlador, text, FI_COLOR);
