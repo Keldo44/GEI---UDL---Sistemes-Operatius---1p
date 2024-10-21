@@ -38,7 +38,7 @@ void ImprimirError(char *text);
 ---------------------------------------------------------------------- 
 */
 char capInfoControlador[MIDA_MAX_CADENA];
-int pipeNombres[2], pipeRespostes[2]; // pipes para comunicación
+int PIPE_NOMBRES_WRITE[2], pipeRespostes[2]; // pipes para comunicación
 
 /*
 ---------------------------------------------------------------------- 
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     numFinal = atoi(argv[2]);
 
     // Crear pipes
-    if (pipe(pipeNombres) == -1 || pipe(pipeRespostes) == -1) {
+    if (pipe(PIPE_NOMBRES_WRITE) == -1 || pipe(pipeRespostes) == -1) {
         ImprimirError("Error creating pipes");
     }
 
@@ -80,9 +80,13 @@ int main(int argc, char *argv[])
         ImprimirError("Error creando proceso generador");
     } else if (pid == 0) {
         // Proceso hijo: Generador
-        close(pipeNombres[0]); // cerrar lectura en generador
-        execl("./generador", "./generador", argv[2], NULL);
+        close(PIPE_NOMBRES_WRITE[0]); // cerrar lectura en generador
+        execl("./generador", "./generador", argv[1], NULL);
         ImprimirError("Error execl generador");
+    } else if (pid != 0) {
+        // Proceso padre: Esperar a que terminen los hijos
+        wait(0);
+        write(1, "Proceso gen terminó\n", strlen("Proceso gen terminó\n"));
     }
 
     // Crear procesos calculadores
@@ -92,7 +96,7 @@ int main(int argc, char *argv[])
             ImprimirError("Error creando proceso calculador");
             break;
         case 0: /* Proceso hijo: Calculador */
-            close(pipeNombres[1]); // Cerrar escritura
+            close(PIPE_NOMBRES_WRITE[1]); // Cerrar escritura
             close(pipeRespostes[0]); // Cerrar lectura
             execl("./calculador", "./calculador", NULL);
             ImprimirError("Error execl calculador");
@@ -102,7 +106,7 @@ int main(int argc, char *argv[])
     }
 
     // Proceso padre: Controlador
-    close(pipeNombres[1]); // Cerrar escritura de nombres en controlador
+    close(PIPE_NOMBRES_WRITE[1]); // Cerrar escritura de nombres en controlador
     close(pipeRespostes[1]); // Cerrar escritura de respostes en controlador
 
     // Leer del pipe de respostes
