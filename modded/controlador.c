@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     }
 
     // Update this array with the correct executable name
-    char *args[] = {"./calculador", NULL};
+    char *args[] = {"./calculador", "./calculador", NULL};
 
     if (argc != 2)
     {
