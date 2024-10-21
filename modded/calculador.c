@@ -1,179 +1,116 @@
-/*
-----------------------------------------------------------------------
---- L L I B R E R I E S ------------------------------
-----------------------------------------------------------------------
-*/
-#include <stdio.h> /* sprintf*/
-
-// pid_t
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <stdlib.h> /* exit, EXIT_SUCCESS, ...*/
-#include <string.h> /* strlen */
-#include <unistd.h> /* STDOUT_FILENO */
-#include <errno.h>  /* errno */
+#include <stdio.h>     // sprintf (solo para formatear cadenas)
+#include <unistd.h>    // pipe, read, write, close
+#include <stdlib.h>    // exit, EXIT_SUCCESS, EXIT_FAILURE
+#include <string.h>    // strlen
+#include <signal.h>    // signal, SIGTERM, pause
+#include <errno.h>     // errno
 
 /*
-----------------------------------------------------------------------
---- C O N S T A N T S------ ------------------------------------------
-----------------------------------------------------------------------
+---------------------------------------------------------------------- 
+--- C O N S T A N T S ------------------------------------------------ 
+---------------------------------------------------------------------- 
 */
 #define MIDA_MAX_CADENA 1024
-
+#define INVERTIR_COLOR "\e[7m"
 #define FI_COLOR "\e[0m"
-#define MIDA_MAX_CADENA_COLORS 1024
 #define FORMAT_TEXT_ERROR "\e[1;48;5;1;38;5;255m"
 
-/*
-----------------------------------------------------------------------
---- C A P Ç A L E R E S   D E   F U N C T I O N S --------------------
-----------------------------------------------------------------------
-*/
-void ComprovarPrimer(int nombre);
-void ImprimirInfoControlador(char *text);
-void ImprimirError(char *text);
-
-/*
-----------------------------------------------------------------------
---- D E F I N I C I Ó   D E   T I P U S ------------------------------
-----------------------------------------------------------------------
-*/
-typedef enum
-{
-    FALS = 0,
-    CERT
-} t_logic;
-
-/*
-----------------------------------------------------------------------
---- V A R I A B L E S   G L O B A L S --------------------------------
-----------------------------------------------------------------------
-*/
-unsigned char numControlador;
-pid_t pidPropi;
-char cadena[MIDA_MAX_CADENA];
-char dadesControlador[MIDA_MAX_CADENA];
-
-char taulaColors[8][MIDA_MAX_CADENA_COLORS] = {
-    "\e[01;31m", // Vermell
-    "\e[01;32m", // Verd
-    "\e[01;33m", // Groc
-    "\e[01;34m", // Blau
-    "\e[01;35m", // Magenta
-    "\e[01;36m", // Cian
-    "\e[00;33m", // Taronja
-    "\e[1;90m"   // Gris fosc
-};
-
-/*
-----------------------------------------------------------------------
---- P R O G R A M A   P R I N C I P A L ------------------------------
-----------------------------------------------------------------------
-*/
-int main(int argc, char *argv[])
-{
-    if (argc != 3)
-    {
-        sprintf(cadena, "Us: %s <número calculador> <fd_pipe>\n\nPer exemple: %s 1 3\n\n", argv[0], argv[0]);
-        write(STDOUT_FILENO, cadena, strlen(cadena));
-        exit(1);
-    }
-
-    pidPropi = getpid();
-    numControlador = atoi(argv[1]);
-    int fdPipe = atoi(argv[2]);  // File descriptor per llegir del pipe
-
-    sprintf(dadesControlador, "[Calculador %u-pid:%u]> ", numControlador, pidPropi);
-
-    sprintf(cadena, "Calculador %u activat!\n", numControlador);
-    ImprimirInfoControlador(cadena);
-
+typedef struct {
+    int pid;
     int nombre;
-    while (read(fdPipe, &nombre, sizeof(int)) > 0)  // Llegir nombres del pipe
-    {
-        ComprovarPrimer(nombre);
+    int esPrimer;
+} t_infoNombre;
+
+/*
+---------------------------------------------------------------------- 
+--- F U N C I O N S   H E A D E R S ---------------------------------- 
+---------------------------------------------------------------------- 
+*/
+void ImprimirError(char *text);
+int esPrimer(int nombre);
+void handle_SIGTERM(int signum);
+
+/*
+---------------------------------------------------------------------- 
+--- G L O B A L   V A R I A B L E S ---------------------------------- 
+---------------------------------------------------------------------- 
+*/
+int pipeNombres[2], pipeRespostes[2];
+int primersCalculats = 0; // Número de primos calculados por este proceso
+
+/*
+---------------------------------------------------------------------- 
+--- M A I N --------------------------------------------------------- 
+---------------------------------------------------------------------- 
+*/
+int main() {
+    t_infoNombre infoNombre;
+
+    // Registrar el manejador de señales
+    signal(SIGTERM, handle_SIGTERM);
+
+    // Cerrar el extremo de escritura de ambos pipes
+    close(pipeNombres[1]);
+    close(pipeRespostes[0]);
+
+    // Leer del pipe de nombres hasta EOF
+    while (read(pipeNombres[0], &infoNombre.nombre, sizeof(int)) > 0) {
+        infoNombre.pid = getpid();
+        infoNombre.esPrimer = esPrimer(infoNombre.nombre);
+
+        // Enviar el resultado a través del pipe de respuestas
+        if (write(pipeRespostes[1], &infoNombre, sizeof(t_infoNombre)) == -1) {
+            ImprimirError("Error al escribir en el pipe de respostes");
+        }
+
+        if (infoNombre.esPrimer) {
+            primersCalculats++;
+        }
     }
 
-    close(fdPipe);  // Tancar el file descriptor del pipe quan acabem
-    exit(0);
+    // Cerrar descriptores de pipes después de recibir EOF
+    close(pipeNombres[0]);
+    close(pipeRespostes[1]);
+
+    // Esperar la señal SIGTERM
+    pause();
+
+    return EXIT_SUCCESS;
 }
 
+/*
+---------------------------------------------------------------------- 
+--- F U N C I O N S ------------------------------------------------- 
+---------------------------------------------------------------------- 
+*/
 
-void ComprovarPrimer(int nombre){
-    int i = 2;
-    t_logic esPrimer = CERT;
-
-    if (nombre > 2)
-    {
-        do
-        {
-            if (nombre % i == 0)
-                esPrimer = FALS;
-
-            i++;
-
-        } while (i < nombre && esPrimer);
+// Función para determinar si un número es primo
+int esPrimer(int nombre) {
+    if (nombre < 2) return 0;
+    for (int i = 2; i * i <= nombre; i++) {
+        if (nombre % i == 0) return 0;
     }
-
-    if (esPrimer)
-    {
-        sprintf(cadena, "%i és primer.\n", nombre);
-        ImprimirInfoControlador(cadena);
-        // Aquí enviem el resultat al controlador a través del pipe de respostes
-    }
-    else
-    {
-        sprintf(cadena, "%i NO és primer.\n", nombre);
-        ImprimirInfoControlador(cadena);
-    }
+    return 1;
 }
 
-
-void ImprimirInfoControlador(char *text)
-{
-    unsigned char i;
-    char info[numControlador * 3 + strlen(dadesControlador) + strlen(text) + 1];
-    char infoColor[numControlador * 3 + strlen(dadesControlador) + strlen(text) + 1 + MIDA_MAX_CADENA_COLORS * 2];
-
-    for (i = 0; i < numControlador * 3; i++)
-        info[i] = ' ';
-
-    for (i = 0; i < strlen(dadesControlador); i++)
-        info[i + numControlador * 3] = dadesControlador[i];
-
-    for (i = 0; i < strlen(text); i++)
-        info[i + numControlador * 3 + strlen(dadesControlador)] = text[i];
-
-    info[numControlador * 3 + strlen(dadesControlador) + strlen(text)] = '\0';
-
-    sprintf(infoColor, "%s%s%s", taulaColors[(numControlador - 1) % 8], info, FI_COLOR);
-
-    if (write(STDOUT_FILENO, infoColor, strlen(infoColor)) == -1)
-        ImprimirError("ERROR write ImprimirInfoControlador");
+// Manejador de la señal SIGTERM
+void handle_SIGTERM(int signum) {
+    // Retornar el número de primos calculados al terminar
+    exit(primersCalculats);
 }
 
-void ImprimirError(char *text)
-{
-    unsigned char i;
-    char info[numControlador * 3 + strlen(dadesControlador) + strlen(text) + 1];
-    char infoColorError[MIDA_MAX_CADENA];
+// Función para imprimir mensajes de error y salir
+void ImprimirError(char *text) {
+    write(2, FORMAT_TEXT_ERROR, strlen(FORMAT_TEXT_ERROR));
+    write(2, "[Error Calculador]: ", 20);
+    write(2, text, strlen(text));
 
-    for (i = 0; i < numControlador * 3; i++)
-        info[i] = ' ';
+    // Obtener y escribir el mensaje de error basado en errno
+    char *errorStr = strerror(errno);
+    write(2, ": ", 2);
+    write(2, errorStr, strlen(errorStr));
+    write(2, FI_COLOR, strlen(FI_COLOR));
+    write(2, "\n", 1);
 
-    for (i = 0; i < strlen(dadesControlador); i++)
-        info[i + numControlador * 3] = dadesControlador[i];
-
-    for (i = 0; i < strlen(text); i++)
-        info[i + numControlador * 3 + strlen(dadesControlador)] = text[i];
-
-    info[numControlador * 3 + strlen(dadesControlador) + strlen(text)] = '\0';
-
-    sprintf(infoColorError, "%s%s: %s%s\n", FORMAT_TEXT_ERROR, info, strerror(errno), FI_COLOR);
-    write(STDERR_FILENO, "\n", 1);
-    write(STDERR_FILENO, infoColorError, strlen(infoColorError));
-    write(STDERR_FILENO, "\n", 1);
-
-    exit(2);
+    exit(EXIT_FAILURE);
 }
