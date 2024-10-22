@@ -29,6 +29,7 @@ typedef struct {
 --- F U N C I O N S   H E A D E R S ---------------------------------- 
 ---------------------------------------------------------------------- 
 */
+void handle_sigquit(int sig);
 void ImprimirInfoControlador(char *text);
 void ImprimirError(char *text);
 
@@ -37,8 +38,10 @@ void ImprimirError(char *text);
 --- G L O B A L   V A R I A B L E S ---------------------------------- 
 ---------------------------------------------------------------------- 
 */
+
+volatile sig_atomic_t signal_received = 0;
 char capInfoControlador[MIDA_MAX_CADENA];
-int PIPE_NOMBRES_WRITE[2], pipeRespostes[2]; // pipes para comunicación
+int pipeRespostes[2]; // pipes para comunicación
 
 /*
 ---------------------------------------------------------------------- 
@@ -47,9 +50,11 @@ int PIPE_NOMBRES_WRITE[2], pipeRespostes[2]; // pipes para comunicación
 */
 int main(int argc, char *argv[])
 {
+    signal(SIGQUIT, handle_sigquit);
+
     unsigned short int numCalculadors, numFinal;
     unsigned char i;
-    pid_t pid;
+    pid_t pid, pidsHijos[100]; 
     int estatWait;
     char cadena[MIDA_MAX_CADENA];
 
@@ -63,6 +68,8 @@ int main(int argc, char *argv[])
     sprintf(capInfoControlador, "[%s-pid:%u]> ", argv[0], getpid());
     numCalculadors = atoi(argv[1]);
     numFinal = atoi(argv[2]);
+
+    int PIPE_NOMBRES_WRITE[2];
 
     // Crear pipes
     if (pipe(PIPE_NOMBRES_WRITE) == -1 || pipe(pipeRespostes) == -1) {
@@ -81,7 +88,8 @@ int main(int argc, char *argv[])
     } else if (pid == 0) {
         // Proceso hijo: Generador
         close(PIPE_NOMBRES_WRITE[0]); // cerrar lectura en generador
-        execl("./generador", "./generador", argv[1], NULL);
+        dup2(PIPE_NOMBRES_WRITE[1], 10);
+        execl("./generador", "./generador", argv[2], NULL);
         ImprimirError("Error execl generador");
     } else if (pid != 0) {
         // Proceso padre: Esperar a que terminen los hijos
@@ -98,9 +106,12 @@ int main(int argc, char *argv[])
         case 0: /* Proceso hijo: Calculador */
             close(PIPE_NOMBRES_WRITE[1]); // Cerrar escritura
             close(pipeRespostes[0]); // Cerrar lectura
+            dup2(PIPE_NOMBRES_WRITE[0], 11); // asignar descriptor 11 para lectura
+            dup2(pipeRespostes[1], 20); // asignar descriptor 20 para escritura
             execl("./calculador", "./calculador", NULL);
             ImprimirError("Error execl calculador");
         default: /* Proceso padre */
+            pidsHijos[i] = pid; // almacenar el PID del hijo
             break;
         }
     }
@@ -124,7 +135,7 @@ int main(int argc, char *argv[])
 
     // Enviar SIGTERM a los procesos hijos
     for (i = 0; i < numCalculadors; i++) {
-        kill(pid, SIGTERM);
+        kill(pidsHijos[i], SIGTERM); // enviar SIGTERM al PID del hijo
         pid = wait(&estatWait); // Esperar a que terminen los hijos
     }
 
@@ -141,7 +152,11 @@ int main(int argc, char *argv[])
 --- F U N C I O N S ------------------------------------------------- 
 ---------------------------------------------------------------------- 
 */
-
+void handle_sigquit(int sig) {
+    // Handle the SIGQUIT signal
+    //signal_received = 1;
+    //write(1, "Received SIGQUIT signal.\n", 25);
+}
 void ImprimirInfoControlador(char *text) {
     write(1, INVERTIR_COLOR, strlen(INVERTIR_COLOR));
     write(1, capInfoControlador, strlen(capInfoControlador));
