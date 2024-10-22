@@ -7,6 +7,7 @@
 #include <signal.h>    // signal, SIGTERM, SIGQUIT
 #include <errno.h>     // errno
 
+#include <fcntl.h>
 /*
 ---------------------------------------------------------------------- 
 --- C O N S T A N T S ----------------------------------------------- 
@@ -41,7 +42,7 @@ void ImprimirError(char *text);
 
 volatile sig_atomic_t signal_received = 0;
 char capInfoControlador[MIDA_MAX_CADENA];
-int pipeRespostes[2]; // pipes para comunicación
+
 
 /*
 ---------------------------------------------------------------------- 
@@ -50,7 +51,7 @@ int pipeRespostes[2]; // pipes para comunicación
 */
 int main(int argc, char *argv[])
 {
-    signal(SIGQUIT, handle_sigquit);
+    
 
     unsigned short int numCalculadors, numFinal;
     unsigned char i;
@@ -69,10 +70,10 @@ int main(int argc, char *argv[])
     numCalculadors = atoi(argv[1]);
     numFinal = atoi(argv[2]);
 
-    int PIPE_NOMBRES_WRITE[2];
+    int PIPE_NOMBRES[2];
 
     // Crear pipes
-    if (pipe(PIPE_NOMBRES_WRITE) == -1 || pipe(pipeRespostes) == -1) {
+    if (pipe(PIPE_NOMBRES) == -1) {
         ImprimirError("Error creating pipes");
     }
 
@@ -86,15 +87,29 @@ int main(int argc, char *argv[])
     if ((pid = fork()) == -1) {
         ImprimirError("Error creando proceso generador");
     } else if (pid == 0) {
-        // Proceso hijo: Generador
-        close(PIPE_NOMBRES_WRITE[0]); // cerrar lectura en generador
-        dup2(PIPE_NOMBRES_WRITE[1], 10);
+        // Child process (generator)
+        close(PIPE_NOMBRES[0]); // Close reading end in the child
+        dup2(PIPE_NOMBRES[1], 10); // Duplicate write end to descriptor 10
+        close(PIPE_NOMBRES[1]); // Close original after duplicating
+        
         execl("./generador", "./generador", argv[2], NULL);
         ImprimirError("Error execl generador");
     } else if (pid != 0) {
         // Proceso padre: Esperar a que terminen los hijos
+        close(PIPE_NOMBRES[1]); // Close writing end in the parent
+        //signal(SIGQUIT, handle_sigquit);
+         
+        // Esperar un poco antes de enviar la señal (para asegurarse de que el generador está listo)
+        sleep(1);
+        kill(pid, SIGQUIT);
+        
         wait(0);
         write(1, "Proceso gen terminó\n", strlen("Proceso gen terminó\n"));
+    }
+
+    int pipeRespostes[2]; // pipes para comunicación
+    if (pipe(pipeRespostes) == -1) {
+        ImprimirError("Error creating pipes");
     }
 
     // Crear procesos calculadores
@@ -104,9 +119,9 @@ int main(int argc, char *argv[])
             ImprimirError("Error creando proceso calculador");
             break;
         case 0: /* Proceso hijo: Calculador */
-            close(PIPE_NOMBRES_WRITE[1]); // Cerrar escritura
+            close(PIPE_NOMBRES[1]); // Cerrar escritura
             close(pipeRespostes[0]); // Cerrar lectura
-            dup2(PIPE_NOMBRES_WRITE[0], 11); // asignar descriptor 11 para lectura
+            dup2(PIPE_NOMBRES[0], 11); // asignar descriptor 11 para lectura
             dup2(pipeRespostes[1], 20); // asignar descriptor 20 para escritura
             execl("./calculador", "./calculador", NULL);
             ImprimirError("Error execl calculador");
@@ -117,7 +132,7 @@ int main(int argc, char *argv[])
     }
 
     // Proceso padre: Controlador
-    close(PIPE_NOMBRES_WRITE[1]); // Cerrar escritura de nombres en controlador
+    close(PIPE_NOMBRES[1]); // Cerrar escritura de nombres en controlador
     close(pipeRespostes[1]); // Cerrar escritura de respostes en controlador
 
     // Leer del pipe de respostes
