@@ -13,8 +13,31 @@
 #include <signal.h>
 #include <fcntl.h>
 
+#define MIDA_MAX_CADENA 1024
+#define INVERTIR_COLOR "\e[7m"
+#define FI_COLOR "\e[0m"
+#define MIDA_MAX_CADENA_COLORS 1024
+#define FORMAT_TEXT_ERROR "\e[1;48;5;1;38;5;255m"
+
+
+typedef struct {
+    int pid;
+    int nombre;
+    int esPrimer;
+} t_infoNombre;
+
+void handle_sigquit(int sig);
+void ImprimirInfoControlador(char *text);
+void ImprimirError(char *text);
+
+volatile sig_atomic_t signal_received = 0;
+char capInfoControlador[MIDA_MAX_CADENA];
+
+
 #define PIPE_READ 11 // Descriptor de lectura del pipe
 #define PIPE_WRITE 10 // Descriptor de escritura del pipe
+
+int gen_pid;
 
 int main(int argc, char *argv[]) {
     int pipe_numeros[2]; // pipe_numeros[0] es para lectura, pipe_numeros[1] para escritura
@@ -27,7 +50,7 @@ int main(int argc, char *argv[]) {
     }
 
     M = atoi(argv[1]); // Obtener el valor de M
-
+    
     // Crear el pipe
     if (pipe(pipe_numeros) == -1) {
         perror("Error creando el pipe");
@@ -56,9 +79,12 @@ int main(int argc, char *argv[]) {
         // Si execl falla
         perror("Error en execl");
         exit(EXIT_FAILURE);
+
     } else {
         // Código del proceso padre (controlador de prueba)
-
+        // Ignore SIGQUIT 
+        gen_pid = pid;
+        signal(SIGQUIT, handle_sigquit);
         // Cerrar el extremo de escritura del pipe en el controlador
         close(pipe_numeros[1]);
 
@@ -66,7 +92,9 @@ int main(int argc, char *argv[]) {
         sleep(1);
 
         // Enviar la señal SIGQUIT al proceso hijo (generador)
-        kill(pid, SIGQUIT);
+        
+        // Esperar que el proceso hijo termine
+        wait(NULL);
 
         // Leer los números del pipe
         int numero;
@@ -75,8 +103,7 @@ int main(int argc, char *argv[]) {
             printf("Número recibido: %d\n", numero);
         }
 
-        // Esperar que el proceso hijo termine
-        wait(NULL);
+        
 
         // Cerrar el descriptor de lectura del pipe
         close(pipe_numeros[0]);
@@ -85,4 +112,10 @@ int main(int argc, char *argv[]) {
     }
 
     return 0;
+}
+
+void handle_sigquit(int sig) {
+    // ignore SIGquit
+    kill(gen_pid, SIGQUIT);
+    //write(1, "Received SIGQUIT signal.\n", 25);
 }

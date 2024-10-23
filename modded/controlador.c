@@ -51,8 +51,6 @@ char capInfoControlador[MIDA_MAX_CADENA];
 */
 int main(int argc, char *argv[])
 {
-    
-
     unsigned short int numCalculadors, numFinal;
     unsigned char i;
     pid_t pid, pidsHijos[100]; 
