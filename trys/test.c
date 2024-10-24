@@ -81,10 +81,22 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
 
     } else {
+        pid=fork();
+        if (pid == -1) {
+            perror("Error en fork");
+            exit(EXIT_FAILURE);
+        }
+        if (pid == 0) {
+        
+        }
+        
+
         // Código del proceso padre (controlador de prueba)
         // Ignore SIGQUIT 
         gen_pid = pid;
         signal(SIGQUIT, handle_sigquit);
+        
+        
         // Cerrar el extremo de escritura del pipe en el controlador
         close(pipe_numeros[1]);
 
@@ -100,7 +112,9 @@ int main(int argc, char *argv[]) {
         int numero;
         printf("Controlador de prueba: Leyendo números del pipe...\n");
         while (read(pipe_numeros[0], &numero, sizeof(int)) > 0) {
-            printf("Número recibido: %d\n", numero);
+            // Imprimir el número
+            snprintf(buffer, sizeof(buffer), "Número recibido: %d\n", numero );
+            write(1, buffer, strlen(buffer));
         }
 
         
@@ -116,6 +130,6 @@ int main(int argc, char *argv[]) {
 
 void handle_sigquit(int sig) {
     // ignore SIGquit
-    kill(gen_pid, SIGQUIT);
+    //kill(gen_pid, SIGQUIT);
     //write(1, "Received SIGQUIT signal.\n", 25);
 }

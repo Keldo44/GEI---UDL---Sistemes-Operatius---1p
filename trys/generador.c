@@ -21,6 +21,8 @@ char buffer[100];          // Buffer para escritura de mensajes
 
 // Manejador de señal para SIGQUIT (Ctrl + 4)
 void sigquit_handler(int sig) {
+    recived_quit_sigs = 1;  // Marcar que se recibió SIGQUIT
+
     int i, M = max_nombres;
 
     // Leer el número M desde el pipe (descriptor 11)
@@ -71,7 +73,7 @@ int main(int argc, char *argv[]) {
         write(1, buffer, strlen(buffer));  // Escribir en stdout
 
         signal(SIGQUIT, sigquit_handler);  // SIGQUIT para iniciar el envío de números
-        recived_quit_sigs = 1;  // Marcar que se recibió SIGQUIT
+        
 
         pause();
     }
