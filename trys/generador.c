@@ -39,9 +39,10 @@ void sigquit_handler(int sig) {
     write(1, buffer, strlen(buffer));  // Escribir en stdout
     for (i = 2; i <= M; i++) {
         // Escribir cada número en el pipe
-        snprintf(buffer, sizeof(buffer), "Generador: Número %d enviado al pipe.\n", i);  // Escribir el número en el stdout
+        snprintf(buffer, sizeof(buffer), "Generador: Número %d enviado al pipe.\n", i);  
+        
+        // Escribir el número en el stdout
         write(1, buffer, strlen(buffer));
-
         write(pipe_nombres_fd, &i, sizeof(int));
     }
 
@@ -57,31 +58,25 @@ void sigquit_handler(int sig) {
 void sigterm_handler(int sig) {
     // Escribir mensaje indicando que se recibió SIGTERM
     snprintf(buffer, sizeof(buffer), "Generador: Señal SIGTERM recibida. Terminando proceso...\n");
-    write(1, buffer, strlen(buffer));  // Escribir en stdout
+    
+    // Escribir en stdout
+    write(1, buffer, strlen(buffer));  
     exit(0);  // Terminar el proceso con éxito
 }
 
 int main(int argc, char *argv[]) {
     max_nombres = atoi(argv[1]);
 
-    
-
     // Configurar manejadores de señales
     while (recived_quit_sigs == 0){
         // Escribir mensaje indicando que el proceso está esperando SIGQUIT
         snprintf(buffer, sizeof(buffer), "Generador: Esperando señal SIGQUIT...\n");
         write(1, buffer, strlen(buffer));  // Escribir en stdout
-
         signal(SIGQUIT, sigquit_handler);  // SIGQUIT para iniciar el envío de números
-        
-
         pause();
     }
     
     //signal(SIGTERM, sigterm_handler);  // SIGTERM para terminar el proceso
-
-    
-    
 
     return 0;
 }
