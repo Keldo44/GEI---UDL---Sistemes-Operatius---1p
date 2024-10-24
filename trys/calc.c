@@ -12,6 +12,7 @@
 #include <fcntl.h>      // Para las flags del pipe (O_RDONLY, O_WRONLY).
 #include <stdbool.h>    // Para el tipo de dato bool.
 #include <sys/types.h>  // Para el tipo pid_t.
+#include <string.h>
 
 // Estructura para enviar la información de los números comprobados
 typedef struct {
@@ -24,7 +25,9 @@ int contador_primos = 0; // Número de primos que ha calculado el proceso calcul
 
 // Función que determina si un número es primo
 bool es_primo(int num) {
-    if (num <= 1) return false;
+    if (num <= 1) {
+        return false;
+    }
     for (int i = 2; i * i <= num; i++) {
         if (num % i == 0){
             return false;            
@@ -32,6 +35,8 @@ bool es_primo(int num) {
     }
     return true;
 }
+
+
 
 // Manejador de la señal SIGTERM: se usará para finalizar el proceso calculador
 void manejador_SIGTERM(int sig) {
@@ -41,16 +46,17 @@ void manejador_SIGTERM(int sig) {
 
 // Manejador de la señal SIGUSR1: se usará para imprimir el número de primos calculados
 void manejador_SIGUSR1(int sig) {
-   // Instala el manejador para la señal SIGTERM
+    // Controlador para la señal SIGTERM
     signal(SIGTERM, manejador_SIGTERM);
-    signal(SIGUSR1, manejador_SIGUSR1);
+    signal(SIGUSR1, SIG_IGN); // Desactiva el manejador para la señal SIGUSR1
 
     int fd_pipe_nombres = 11;  // Descriptor de lectura del pipe de nombres
     int fd_pipe_respuestas = 20; // Descriptor de escritura del pipe de respuestas
 
     t_infoNombre infoNombre;  // Estructura para enviar la información de resultados
     infoNombre.pid = getpid(); // Asigna el PID del proceso calculador
-
+    
+    
     int nombre;
     ssize_t bytes_leidos;
 
@@ -68,13 +74,19 @@ void manejador_SIGUSR1(int sig) {
             contador_primos++;
         }
 
+        //Descomentar para generar delay y que no se procese todo en el mismo calculador
+        //sleep(1);
+        
         // Escribe la estructura con los resultados en el pipe de respuestas
         write(fd_pipe_respuestas, &infoNombre, sizeof(t_infoNombre));
     }
-
+    
     // Cierra los descriptores de los pipes cuando termina la lectura
     close(fd_pipe_nombres);
     close(fd_pipe_respuestas);
+
+    exit(0);
+
 
     // Espera indefinidamente hasta recibir la señal SIGTERM
     while (1) {
@@ -90,7 +102,8 @@ int main() {
     signal(SIGTERM, SIG_IGN);
     signal(SIGQUIT, SIG_IGN);
     signal(SIGUSR1, manejador_SIGUSR1);
-    // Espera indefinidamente hasta recibir la señal SIGTERM
+   
+    // Espera indefinidamente hasta recibir la señal SIGUSR1
     while (1) {
         pause();  // Pausa el proceso hasta recibir una señal
     }

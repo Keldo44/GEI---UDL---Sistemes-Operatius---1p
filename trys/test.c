@@ -14,7 +14,7 @@
 #include <sys/wait.h>  // wait
 #include <signal.h>    // signal, SIGTERM, SIGQUIT
 #include <errno.h>     // errno
-
+#include <stdbool.h>   // Boolean 
 #include <fcntl.h>
 
 #define MIDA_MAX_CADENA 1024
@@ -27,7 +27,7 @@
 typedef struct {
     int pid;
     int nombre;
-    int es_primer;
+    bool es_primer;
 } t_infoNombre;
 
 void handle_sigquit(int sig);
@@ -37,9 +37,13 @@ void ImprimirError(char *text);
 volatile sig_atomic_t signal_received = 0;
 char capInfoControlador[MIDA_MAX_CADENA];
 
+
+
 int gen_pid;
 
 int main(int argc, char *argv[]) {
+    char buffer[100];
+
     int pipe_numeros[2]; // pipe_numeros[0] es para lectura, pipe_numeros[1] para escritura (10 WRITE, 11 READ)
     #define NUM_WRITE 10
     #define NUM_READ 11
@@ -51,7 +55,8 @@ int main(int argc, char *argv[]) {
     pid_t pid;
 
     // Nos aseguramos de que el usuario introduzca los argumentos correctamente
-    if (argc != 3) {write(1, "Us: ", 4);
+    if (argc != 3) {
+        write(1, "Us: ", 4);
         write(1, argv[0], strlen(argv[0]));
         write(1, " <nombre processos calculadors> <nombre final>\n\n", 48);
         exit(2);
@@ -66,17 +71,18 @@ int main(int argc, char *argv[]) {
     //Señales que ignoramos
     signal(SIGQUIT, SIG_IGN); //Ignoramos el sig quit
     signal(SIGTERM, SIG_IGN); //Ignoramos el sig term
-    signal(SIGINT, SIG_IGN); //Ignoramos el sig ter
+    signal(SIGINT, SIG_IGN); //Ignoramos el sig int
+
     // Crear el pipe
     if (pipe(pipe_numeros) == -1) {
-        perror("Error creando el pipe");
+        ImprimirError("Error creando el pipe");
         exit(EXIT_FAILURE);
     }
 
     // Crear el proceso hijo (el generador)
     pid = fork();
     if (pid == -1) {
-        perror("Error en fork");
+        ImprimirError("Error en fork");
         exit(EXIT_FAILURE);
     }
 
@@ -90,10 +96,10 @@ int main(int argc, char *argv[]) {
         dup2(pipe_numeros[1], NUM_WRITE);
 
         // Ejecutar el generador
-        execl("./generador", "generador", argv[1], NULL);
+        execl("./generador", "generador", argv[2], NULL);
 
         // Si execl falla
-        perror("Error en execl");
+        ImprimirError("Error en execl");
         exit(EXIT_FAILURE);
 
     } else {
@@ -110,13 +116,14 @@ int main(int argc, char *argv[]) {
                 ImprimirError("Error creando proceso calculador");
                 break;
             case 0: /* Proceso hijo: Calculador */
+                char* msg;
+                //snprintf(msg, 30, "Proceso calculador %i creado.", i);
+                //ImprimirInfoControlador(msg); 
+
                 close(pipe_numeros[1]); // Cerrar escritura de numeros
                 close(pipe_respostes[0]); // Cerrar lectura de respuestas
                 dup2(pipe_numeros[0], NUM_READ); 
                 dup2(pipe_respostes[1], RES_WRITE); 
-
-                
-
                 execl("./calculador", "./calculador", NULL);
                 ImprimirError("Error execl calculador");
             default: /* Proceso padre */
@@ -125,7 +132,7 @@ int main(int argc, char *argv[]) {
             }
         }
         //Espera a que acabe un hijo para proseguir (solo puede ser el generador)
-        wait(NULL);
+        wait(0);
 
         // Enviar señal a cada hijo para que comiencen
         for (int i = 0; i < numCalculadors; i++) {
@@ -133,10 +140,8 @@ int main(int argc, char *argv[]) {
         }
         
         // Código del proceso padre (controlador de prueba)
-        // Ignore SIGQUIT 
+        
         gen_pid = pid;
-        
-        
         
         // Cerrar el extremo de escritura del pipe en el controlador
         close(pipe_numeros[1]);
@@ -147,31 +152,46 @@ int main(int argc, char *argv[]) {
         int fd_pipe_respuestas = 20; // Descriptor de escritura del pipe de respuestas
         t_infoNombre infoNombre;      // Estructura para recibir la información de resultados
         dup2(pipe_respostes[0], 20);
-        // Crea el pipe (asume que ya se ha creado previamente)
-        // int fd_pipe_nombres[2]; // Un ejemplo si necesitas crear un pipe aquí
-        // pipe(fd_pipe_nombres); // Crear el pipe de nombres
+        int bytes_leidos;
 
-        // Aquí iría la lógica para crear el proceso hijo, que ejecutaría el proceso calculador
+        wait(0);
 
-        // Proceso padre: leer respuestas del pipe
-        ssize_t bytes_leidos;
-
-        // Bucle para leer estructuras del pipe de respuestas hasta recibir EOF
         while ((bytes_leidos = read(20, &infoNombre, sizeof(t_infoNombre))) > 0) {
             // Procesar la información recibida
-            printf("Proceso PID: %d, Número: %d, Es primo: %s\n",
-                infoNombre.pid,
-                infoNombre.nombre,
-                infoNombre.es_primer ? "Sí" : "No");
-        }
+            snprintf(buffer, sizeof(buffer), "Calculador %d: El número %d %s es primo.\n", 
+                    infoNombre.pid, 
+                    infoNombre.nombre, 
+                    infoNombre.es_primer ? "SI" : "NO");
 
+            // Escribir el mensaje en stdout
+            write(STDOUT_FILENO, buffer, strlen(buffer));
+        
+
+            if (bytes_leidos == 0) {
+                // Si llegamos al final del pipe (EOF)
+                write(STDOUT_FILENO, "EOFe alcanzado.\n", 15);
+            } else if (bytes_leidos < 0) {
+                // Manejar el error si read devuelve un valor negativo
+                perror("Error al leer el pipe");
+            }
+        }
         // Cerrar el descriptor de lectura del pipe de respuestas
         close(fd_pipe_respuestas);        
 
+        // Enviar señal a cada hijo para que terminen
+        for (int i = 0; i < numCalculadors; i++) {
+            kill(pidsHijos[i], SIGTERM);
+            snprintf(buffer, sizeof(buffer), "Calculador %d ha finalizado\n", i);
+            write(1, buffer, strlen(buffer));  // Escribir en stdout
+        }
 
-        printf("Controlador de prueba: Finalizado.\n");
+        // Esperar a que todos los procesos hijos terminen
+        for (int i = 0; i < numCalculadors; i++) {
+            int status;
+            waitpid(pidsHijos[i], &status, 0); // Esperar la terminación de cada hijo
+        }
+        //printf("Controlador de prueba: Finalizado.\n");
     }
-
     return 0;
 }
 
@@ -192,7 +212,6 @@ void ImprimirError(char *text) {
     write(2, errorStr, strlen(errorStr));
     write(2, FI_COLOR, strlen(FI_COLOR));
     write(2, "\n", 1);
-    
     exit(EXIT_FAILURE);
 }
 
