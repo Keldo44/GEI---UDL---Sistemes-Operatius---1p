@@ -55,13 +55,15 @@ int main(int argc, char *argv[]) {
         write(1, argv[0], strlen(argv[0]));
         write(1, " <nombre processos calculadors> <nombre final>\n\n", 48);
         exit(2);
-    }
+    } 
 
     // Los parseamos
     int numCalculadors = atoi(argv[1]);
     int numNombres = atoi(argv[2]);
 
     int pidsHijos[numCalculadors];
+
+    //Señales que ignoramos
     signal(SIGQUIT, SIG_IGN); //Ignoramos el sig quit
     signal(SIGTERM, SIG_IGN); //Ignoramos el sig term
     signal(SIGINT, SIG_IGN); //Ignoramos el sig ter
